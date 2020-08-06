@@ -11,6 +11,11 @@ class Line :
     def update(self, start, end) : 
         self.start = start 
         self.end = end
+    def __str__(self) : 
+        if(self.start == 0 and self.end == 0) : 
+            return "not setted"
+        return "(%d, %d), min = %d" % (self.start, self.end, (self.start + self.end) // 2) 
+
 
 cap = cv2.VideoCapture('./track-s.mkv')
 width = 0
@@ -51,7 +56,7 @@ def perspection(image):
     return perspection_image
 
 def get_histogram(image):
-    cuttedImage = image[height//3:, :]
+    cuttedImage = image[height//4:, :]
     ret, image_bin = cv2.threshold(cuttedImage, 125, 255, cv2.THRESH_BINARY)
     hist = np.sum(image_bin, axis = 0)
     return hist
@@ -61,7 +66,7 @@ def imageShow(img1, img2, img3, img4) :
     ax[0, 1].imshow(img2, cmap='gray', vmin = 0, vmax = 255)
     ax[1, 0].imshow(img3, cmap='gray', vmin = 0, vmax = 255)
     ax[1, 1].plot(img4, color = 'b')
-    plt.pause(0.0001)
+    plt.pause(0.00001)
     ax[1, 1].lines.pop(0)
     plt.show(False)
     plt.draw()
@@ -79,16 +84,18 @@ def getLine(histogram) :
         if prev > thres and now < thres : 
             end.append(i)
         prev = now 
-    print("start : ", start)
-    print("end : " , end)
+    #print("start : ", start)
+    #print("end : " , end)
     
     if len(start) != len(end) : 
         return
     if lineSetted == False and len(start) == 3 : 
         lineSetted = True
+        print("At First, Lines are setted!!!")
         for i in range(3) : 
             lines[i].update(start[i], end[i]) 
         return 
+
 
     #do bipartite matching!!!
     if lineSetted == True and len(start) == 1 : 
@@ -100,16 +107,28 @@ def getLine(histogram) :
                 mindiff = diff 
                 minIndex = i 
         lines[i].update(start[0], end[0])
+        return 
 
     if lineSetted == True and len(start) == 2 : 
         minIndex = set()
         mindiff = 10000 
         for i in range(3) : 
-            for j in (set(range(3)) - set(i)) : 
-                if dif < mindiff : 
-                    mindiff = diff 
-                    #minIndex = setrange((30) - set(i))
+            dif = 0
+            idx = 0
+            for j in set(range(3)) - set([i]) : 
+                dif = abs(lines[j].start - start[idx]) + abs(lines[j].end - end[idx])
+                idx = idx + 1 
+            if dif < mindiff : 
+                mindiff = dif 
+                minIndex = set(range(3)) - set([i])
+        lines[list(minIndex)[0]].update(start[0], end[0])
+        lines[list(minIndex)[1]].update(start[1], end[1]) 
+        return 
 
+    if lineSetted == True and len(start) == 3 : 
+        for i in range(3) : 
+            lines[i].update(start[i], end[i]) 
+        return 
 
 
 init()
@@ -124,6 +143,10 @@ while (cap.isOpened) :
         topview_image = perspection(cropped_image)
         hist = get_histogram(topview_image) 
         getLine(hist)
+        if lineSetted : 
+            print("==line==")
+            for i in range(3) : 
+                print(lines[i]) 
         imageShow(cannyed_image, cropped_image, topview_image, hist)
         k = cv2.waitKey(1)
         if k == 27 : 
