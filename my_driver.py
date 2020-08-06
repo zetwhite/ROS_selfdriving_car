@@ -16,6 +16,8 @@ class Line :
     def update(self, start, end) : 
         self.start = start 
         self.end = end
+    def getMiddle(self) : 
+        return (self.start + self.end) // 2 
     def __str__(self) : 
         if(self.start == 0 and self.end == 0) : 
             return "not setted"
@@ -69,7 +71,7 @@ def perspection(image):
     return perspection_image
 
 def get_histogram(image):
-    cuttedImage = image[height//5:, :]
+    cuttedImage = image[height//6:, :]
     ret, image_bin = cv2.threshold(cuttedImage, 125, 255, cv2.THRESH_BINARY)
     hist = np.sum(image_bin, axis = 0)
     return hist
@@ -144,8 +146,17 @@ def getLine(histogram) :
         return 
 
 
+def draw3Lines(frame) : 
+    global lines, lineSetted 
+    if lineSetted : 
+        cv2.line(frame, (lines[0].getMiddle(), height), (lines[0].getMiddle(), height - 20), (255, 0, 0), 10)
+        cv2.line(frame, (lines[1].getMiddle(), height), (lines[1].getMiddle(), height - 20), (0, 255, 0), 10)
+        cv2.line(frame, (lines[2].getMiddle(), height), (lines[2].getMiddle(), height - 20), (0, 0, 255), 10)
+    return frame 
+
+
 if __name__ == '__main__' :
-    global pub, maxLine, maxAngle
+    global pub, maxLine, maxAngle, lineSetted, lines
     rospy.init_node('my_driver')
     pub = rospy.Publisher('xycar_motor_msg', Int32MultiArray, queue_size=1)
     rate = rospy.Rate(30) 
@@ -158,7 +169,7 @@ if __name__ == '__main__' :
     
         if ret : 
             grayframe = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            cv2.imshow("gray", grayframe)
+            #cv2.imshow("gray", grayframe)
             cannyed_image = canny(grayframe) 
             cropped_image = region_of_interest(cannyed_image)
             topview_image = perspection(cropped_image)
@@ -170,14 +181,11 @@ if __name__ == '__main__' :
                 if(diffLine < -80) : 
                     angle = -70 
                 if(diffLine > 80) : 
-                    angle  = 70 
-                '''
-                print("maxLine = ", maxLine) 
-                angle = (float(l) / maxLine) * maxAngle
-                print("line = %d, angle = %d" %(midLine, angle))
-                '''
+                    angle  = 70  
                 pub_motor(angle, speed)
                 rate.sleep()
+            draw3Lines(frame) 
+            cv2.imshow("gray", frame) 
             #imageShow(cannyed_image, cropped_image, topview_image, hist)
             k = cv2.waitKey(1)
             if k == 27 : 
