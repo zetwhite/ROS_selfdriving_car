@@ -56,7 +56,7 @@ def perspection(image):
     return perspection_image
 
 def get_histogram(image):
-    cuttedImage = image[height//4:, :]
+    cuttedImage = image[height//5:, :]
     ret, image_bin = cv2.threshold(cuttedImage, 125, 255, cv2.THRESH_BINARY)
     hist = np.sum(image_bin, axis = 0)
     return hist
@@ -84,8 +84,6 @@ def getLine(histogram) :
         if prev > thres and now < thres : 
             end.append(i)
         prev = now 
-    #print("start : ", start)
-    #print("end : " , end)
     
     if len(start) != len(end) : 
         return
@@ -102,7 +100,7 @@ def getLine(histogram) :
         minIndex = 0 
         mindiff = 10000
         for i in range(3) : 
-            diff = abs(lines.start - start[i]) + abs(lines.end - end[i]) 
+            diff = abs(lines[i].start - start[0]) + abs(lines[i].end - end[0]) 
             if( diff < mindiff) : 
                 mindiff = diff 
                 minIndex = i 
@@ -144,10 +142,11 @@ while (cap.isOpened) :
         hist = get_histogram(topview_image) 
         getLine(hist)
         if lineSetted : 
+            #print(lines[1])
             print("==line==")
             for i in range(3) : 
                 print(lines[i]) 
-        imageShow(cannyed_image, cropped_image, topview_image, hist)
+        #imageShow(cannyed_image, cropped_image, topview_image, hist)
         k = cv2.waitKey(1)
         if k == 27 : 
             break
