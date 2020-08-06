@@ -1,8 +1,13 @@
+#!/usr/bin/env python
 import cv2
 import numpy as np
 import math
 import matplotlib.pyplot as plt
 import glob
+import rospy
+from std_msgs.msg import Int32MultiArray
+import time 
+import os
 
 class Line : 
     def __init__(self, start, end) : 
@@ -17,23 +22,31 @@ class Line :
         return "(%d, %d), min = %d" % (self.start, self.end, (self.start + self.end) // 2) 
 
 
-cap = cv2.VideoCapture('./track-s.mkv')
 width = 0
 height = 0
+maxLine = 0
+maxAngle = 180
 fig, ax = plt.subplots(2, 2)
 
 lineSetted = False 
 lines= [Line(0, 0) , Line(0, 0), Line(0, 0)] 
-#leftLine = Line(0, 0)
-#midLine = Line(0, 0)
-#rightLine = Line(0, 0)
 
+
+def pub_motor(Angle, Speed) : 
+    drive_info = [Angle, Speed] 
+    drive_info = Int32MultiArray(data = drive_info) 
+    pub.publish(drive_info) 
 
 def init() : 
-    global cap, width, height, fig, ax, lineSetted
-    cap = cv2.VideoCapture('./track-s.mkv')
+    global cap, width, height, fig, ax, lineSetted, maxLine
+    #print("isFIle? ")
+    #print(os.path.isfile("./track-s.mkv"))
+    cap = cv2.VideoCapture('/home/zetwhite/catkin_ws/src/xycar_simul/src/track-s.mkv')
     ret, frame = cap.read() 
+    if not ret : 
+        print("Error in opening track-s.mkv")
     height, width = frame.shape[:2]
+    maxLine = width // 2 
     plt.ion()
 
 def canny(image) : 
@@ -84,6 +97,8 @@ def getLine(histogram) :
         if prev > thres and now < thres : 
             end.append(i)
         prev = now 
+    #print("start : ", start)
+    #print("end : " , end)
     
     if len(start) != len(end) : 
         return
@@ -129,29 +144,46 @@ def getLine(histogram) :
         return 
 
 
-init()
-while (cap.isOpened) : 
-    ret, frame = cap.read()
+if __name__ == '__main__' :
+    global pub, maxLine, maxAngle
+    rospy.init_node('my_driver')
+    pub = rospy.Publisher('xycar_motor_msg', Int32MultiArray, queue_size=1)
+    rate = rospy.Rate(30) 
+    speed = 20
+    angle = 0
+
+    init()
+    while (cap.isOpened) : 
+        ret, frame = cap.read()
     
-    if ret : 
-        grayframe = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        cv2.imshow("gray", grayframe)
-        cannyed_image = canny(grayframe) 
-        cropped_image = region_of_interest(cannyed_image)
-        topview_image = perspection(cropped_image)
-        hist = get_histogram(topview_image) 
-        getLine(hist)
-        if lineSetted : 
-            #print(lines[1])
-            print("==line==")
-            for i in range(3) : 
-                print(lines[i]) 
-        #imageShow(cannyed_image, cropped_image, topview_image, hist)
-        k = cv2.waitKey(1)
-        if k == 27 : 
+        if ret : 
+            grayframe = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            cv2.imshow("gray", grayframe)
+            cannyed_image = canny(grayframe) 
+            cropped_image = region_of_interest(cannyed_image)
+            topview_image = perspection(cropped_image)
+            hist = get_histogram(topview_image) 
+            getLine(hist)
+            if lineSetted : 
+                midLine = (lines[1].start + lines[1].end )//2
+                diffLine = midLine - maxLine
+                if(diffLine < -80) : 
+                    angle = -70 
+                if(diffLine > 80) : 
+                    angle  = 70 
+                '''
+                print("maxLine = ", maxLine) 
+                angle = (float(l) / maxLine) * maxAngle
+                print("line = %d, angle = %d" %(midLine, angle))
+                '''
+                pub_motor(angle, speed)
+                rate.sleep()
+            #imageShow(cannyed_image, cropped_image, topview_image, hist)
+            k = cv2.waitKey(1)
+            if k == 27 : 
+                break
+        else : 
             break
-    else : 
-            break
-#plt.show() 
-cap.release() 
-cv2.destroyAllWindows()
+    #plt.show() 
+    cap.release() 
+    cv2.destroyAllWindows()
